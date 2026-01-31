@@ -14,7 +14,7 @@ all: clean build
 
 .PHONY: build
 build:
-	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) .
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/lineartui
 
 .PHONY: clean
 clean:
