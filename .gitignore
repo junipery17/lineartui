@@ -1,2 +1,12 @@
 .DS_Store
+
+# Binary
 lineartui
+lineartui-*
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Config files with secrets
+.lcli.yaml
