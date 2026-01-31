@@ -1,0 +1,4 @@
+linear:
+  api_key: ""  # Or set LINEARTUI_LINEAR_API_KEY env var
+  api_url: https://api.linear.app/graphql
+  team_id: ""  # Your Linear team ID
