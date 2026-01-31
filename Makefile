@@ -2,11 +2,6 @@ BINARY_NAME=lineartui
 
 BUILD_DIR=.
 
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-GOMOD=$(GOCMD) mod
-GOFMT=$(GOCMD) fmt
-
 LDFLAGS=-ldflags "-s -w"
 
 .PHONY: all
@@ -14,7 +9,7 @@ all: clean build
 
 .PHONY: build
 build:
-	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/lineartui
+	go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd
 
 .PHONY: clean
 clean:
