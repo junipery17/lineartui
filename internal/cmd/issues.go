@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -23,9 +24,9 @@ var issuesListCmd = &cobra.Command{
 		if teamID == "" {
 			return fmt.Errorf("team ID required. Use --team flag or set linear.team_id in config")
 		}
-		// TODO: implement issues listing
+		ctx := context.Background()
 		fmt.Printf("Listing issues for team %s...\n", teamID)
-		return nil
+		return linearClient.DisplayIssues(ctx, teamID)
 	},
 }
 
@@ -48,12 +49,14 @@ var issuesCreateCmd = &cobra.Command{
 			return fmt.Errorf("team ID required. Use --team flag or set linear.team_id in config")
 		}
 		description, _ := cmd.Flags().GetString("description")
-		// TODO: implement issue creation
 		fmt.Printf("Creating issue '%s' in team %s...\n", title, teamID)
 		if description != "" {
 			fmt.Printf("Description: %s\n", description)
 		}
-		return nil
+		ctx := context.Background()
+		_, err := linearClient.AddIssue(ctx, teamID, title, description)
+
+		return err
 	},
 }
 
@@ -68,7 +71,8 @@ var issuesDeleteCmd = &cobra.Command{
 		issueID := args[0]
 		// TODO: implement issue deletion
 		fmt.Printf("Deleting issue %s...\n", issueID)
-		return nil
+		ctx := context.Background()
+		return linearClient.DeleteIssue(ctx, issueID)
 	},
 }
 

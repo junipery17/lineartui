@@ -14,7 +14,7 @@ type Client interface {
 	DisplayTeams(ctx context.Context) error
 	GetTeamIssues(ctx context.Context, teamID string) (*TeamData, error)
 	DisplayIssues(ctx context.Context, teamID string) error
-	AddIssue(ctx context.Context, teamID, title string, description ...string) (*IssueData, error)
+	AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error)
 	DeleteIssue(ctx context.Context, issueID string) error
 }
 
@@ -62,7 +62,7 @@ type IssueData struct {
 	Assignee    struct {
 		ID   graphql.String
 		Name graphql.String
-	}
+	} `graphql:"assignee"`
 }
 
 func (c *client) GetTeams(ctx context.Context) ([]TeamData, error) {
@@ -99,7 +99,7 @@ func (c *client) GetTeamIssues(ctx context.Context, teamID string) (*TeamData, e
 	}
 
 	variables := map[string]any{
-		"teamId": graphql.ID(teamID),
+		"teamId": graphql.String(teamID),
 	}
 
 	err := c.gql.Query(ctx, &query, variables)
@@ -130,7 +130,7 @@ func (c *client) DisplayIssues(ctx context.Context, teamID string) error {
 	return nil
 }
 
-func (c *client) AddIssue(ctx context.Context, teamID, title string, description ...string) (*IssueData, error) {
+func (c *client) AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error) {
 	if title == "" {
 		return nil, errors.New("title is required")
 	}
@@ -142,16 +142,21 @@ func (c *client) AddIssue(ctx context.Context, teamID, title string, description
 
 	var mutation struct {
 		IssueCreate struct {
-			Success graphql.Boolean
-			Issue   IssueData
+			Success graphql.Boolean `graphql:"success"`
+			Issue   IssueData       `graphql:"issue"`
 		} `graphql:"issueCreate(input: $input)"`
+	}
+	type IssueCreateInput struct {
+		Title       graphql.String `json:"title"`
+		Description graphql.String `json:"description"`
+		TeamID      graphql.String `json:"teamId"`
 	}
 
 	variables := map[string]any{
-		"input": map[string]any{
-			"title":       graphql.String(title),
-			"description": graphql.String(desc),
-			"teamId":      graphql.ID(teamID),
+		"input": IssueCreateInput{
+			Title:       graphql.String(title),
+			Description: graphql.String(desc),
+			TeamID:      graphql.String(teamID),
 		},
 	}
 
@@ -176,7 +181,7 @@ func (c *client) DeleteIssue(ctx context.Context, issueID string) error {
 	}
 
 	variables := map[string]any{
-		"id": graphql.ID(issueID),
+		"id": graphql.String(issueID),
 	}
 
 	err := c.gql.Mutate(ctx, &mutation, variables)
@@ -191,3 +196,5 @@ func (c *client) DeleteIssue(ctx context.Context, issueID string) error {
 	fmt.Printf("Successfully deleted issue: %s\n", issueID)
 	return nil
 }
+
+//a915ed54-6b89-4fb4-8361-5530ebe5783d <-- id of that one test issue u made
