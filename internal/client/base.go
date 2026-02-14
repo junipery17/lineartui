@@ -16,6 +16,7 @@ type Client interface {
 	DisplayIssues(ctx context.Context, teamID string) error
 	AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error)
 	DeleteIssue(ctx context.Context, issueID string) error
+	UpdateAssigneeOnIssue(ctx context.Context, issueID string, assignee string) error
 }
 
 type client struct {
@@ -194,6 +195,34 @@ func (c *client) DeleteIssue(ctx context.Context, issueID string) error {
 	}
 
 	fmt.Printf("Successfully deleted issue: %s\n", issueID)
+	return nil
+}
+
+func (c *client) UpdateAssigneeOnIssue(ctx context.Context, issueID string, assign string) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+
+	type IssueUpdateInput struct {
+		AssigneeId graphql.String `json:"assigneeId"`
+	}
+
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			AssigneeId: graphql.String(assign),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue assignee: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue assignee update was not successful")
+	}
+	fmt.Printf("Successfully updated assignee %s to issue %s\n", assign, issueID)
 	return nil
 }
 

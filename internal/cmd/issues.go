@@ -76,11 +76,32 @@ var issuesDeleteCmd = &cobra.Command{
 	},
 }
 
+var issuesUpdateCmd = &cobra.Command{
+	Use:   "update [issue-id]",
+	Short: "Modify an existing issue",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if cfg.Linear.APIKey == "" {
+			return fmt.Errorf("linear API key not configured. Set LINEARTUI_LINEAR_API_KEY or add it to config.yaml")
+		}
+		issueID, _ := cmd.Flags().GetString("issueID")
+		if issueID == "" {
+			return fmt.Errorf("ID of particular issue is required")
+		}
+		assign, _ := cmd.Flags().GetString("assign")
+		if assign != "" {
+			fmt.Printf("Updating issue %s...\n", issueID)
+			return linearClient.UpdateAssigneeOnIssue(context.Background(), issueID, assign)
+		}
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(issuesCmd)
 	issuesCmd.AddCommand(issuesListCmd)
 	issuesCmd.AddCommand(issuesCreateCmd)
 	issuesCmd.AddCommand(issuesDeleteCmd)
+	issuesCmd.AddCommand(issuesUpdateCmd)
 
 	// Flags for list command
 	issuesListCmd.Flags().StringP("team", "t", "", "Team ID to list issues for")
@@ -90,4 +111,12 @@ func init() {
 	issuesCreateCmd.Flags().StringP("description", "d", "", "Issue description")
 	issuesCreateCmd.Flags().StringP("team", "t", "", "Team ID to create issue in")
 	issuesCreateCmd.MarkFlagRequired("title")
+
+	//Flags for updating Issue command
+	issuesUpdateCmd.Flags().StringP("assign", "a", "", "Edit assigned members")
+	issuesUpdateCmd.Flags().StringP("description", "d", "", "Edit description")
+	issuesUpdateCmd.Flags().StringP("priority", "p", "1", "Set new priority for issue")
+	issuesUpdateCmd.Flags().StringP("issueID", "i", "", "ID of issue to update")
+	issuesCreateCmd.MarkFlagRequired("issueID")
+
 }
