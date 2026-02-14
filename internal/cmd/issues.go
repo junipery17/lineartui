@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -90,7 +91,29 @@ var issuesUpdateCmd = &cobra.Command{
 		assign, _ := cmd.Flags().GetString("assign")
 		if assign != "" {
 			fmt.Printf("Updating issue %s...\n", issueID)
-			return linearClient.UpdateAssigneeOnIssue(context.Background(), issueID, assign)
+			err := linearClient.UpdateAssigneeOnIssue(context.Background(), issueID, assign)
+			if err != nil {
+				return err
+			}
+		}
+		description, _ := cmd.Flags().GetString("description")
+		if description != "" {
+			fmt.Printf("Updating description on issue %s...\n", issueID)
+			err := linearClient.UpdateDescriptionOnIssue(context.Background(), issueID, description)
+			if err != nil {
+				return err
+			}
+		}
+		priority, _ := cmd.Flags().GetString("priority")
+		if priority != "" {
+			priority, parseErr := strconv.ParseInt(priority, 10, 64)
+			if parseErr != nil || priority < 0 || priority > 4 {
+				return fmt.Errorf("Priority must be an integer from 0 to 4")
+			}
+			err := linearClient.UpdatePriorityOnIssue(context.Background(), issueID, float64(priority))
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	},
@@ -115,7 +138,7 @@ func init() {
 	//Flags for updating Issue command
 	issuesUpdateCmd.Flags().StringP("assign", "a", "", "Edit assigned members")
 	issuesUpdateCmd.Flags().StringP("description", "d", "", "Edit description")
-	issuesUpdateCmd.Flags().StringP("priority", "p", "1", "Set new priority for issue")
+	issuesUpdateCmd.Flags().StringP("priority", "p", "", "Set new priority for issue")
 	issuesUpdateCmd.Flags().StringP("issueID", "i", "", "ID of issue to update")
 	issuesCreateCmd.MarkFlagRequired("issueID")
 

@@ -17,6 +17,8 @@ type Client interface {
 	AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error)
 	DeleteIssue(ctx context.Context, issueID string) error
 	UpdateAssigneeOnIssue(ctx context.Context, issueID string, assignee string) error
+	UpdateDescriptionOnIssue(ctx context.Context, issueID string, description string) error
+	UpdatePriorityOnIssue(ctx context.Context, issueID string, priority float64) error
 }
 
 type client struct {
@@ -223,6 +225,58 @@ func (c *client) UpdateAssigneeOnIssue(ctx context.Context, issueID string, assi
 		return errors.New("issue assignee update was not successful")
 	}
 	fmt.Printf("Successfully updated assignee %s to issue %s\n", assign, issueID)
+	return nil
+}
+
+func (c *client) UpdateDescriptionOnIssue(ctx context.Context, issueID string, description string) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+	type IssueUpdateInput struct {
+		Description graphql.String `json:"description"`
+	}
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			Description: graphql.String(description),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue description: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue description update was not successful")
+	}
+	fmt.Printf("Successfully updated description to issue %s\n", issueID)
+	return nil
+}
+
+func (c *client) UpdatePriorityOnIssue(ctx context.Context, issueID string, priority float64) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+	type IssueUpdateInput struct {
+		Priority graphql.Float `json:"priority"`
+	}
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			Priority: graphql.Float(priority),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue priority: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue priority update was not successful")
+	}
+	fmt.Printf("Successfully updated priority %d to issue %s\n", int(priority), issueID)
 	return nil
 }
 
