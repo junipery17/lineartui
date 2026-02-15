@@ -148,7 +148,7 @@ func (c *client) FindIssueByTitle(ctx context.Context, teamID string, title stri
 				ID    graphql.String
 				Title graphql.String
 			}
-		} `graphql:"issues(filter: {title: {contains: $title}})"`
+		} `graphql:"issues(filter: {title: {containsIgnoreCase: $title}})"`
 	}
 
 	variables := map[string]any{
@@ -173,7 +173,7 @@ func (c *client) FindTeamByName(ctx context.Context, name string) (string, error
 				ID   graphql.String
 				Name graphql.String
 			}
-		} `graphql:"teams(filter: {name: {contains: $name}})"`
+		} `graphql:"teams(filter: {name: {containsIgnoreCase: $name}})"`
 	}
 
 	variables := map[string]any{
