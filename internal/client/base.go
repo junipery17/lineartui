@@ -13,7 +13,9 @@ type Client interface {
 	GetTeams(ctx context.Context) ([]TeamData, error)
 	DisplayTeams(ctx context.Context) error
 	GetTeamIssues(ctx context.Context, teamID string) (*TeamData, error)
-	DisplayIssues(ctx context.Context, teamID string) error
+	DisplayIssues(ctx context.Context, teamID string, titlesOnly bool) error
+	FindIssueByTitle(ctx context.Context, teamID string, title string) (string, error)
+	FindTeamByName(ctx context.Context, name string) (string, error)
 	AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error)
 	DeleteIssue(ctx context.Context, issueID string) error
 	UpdateAssigneeOnIssue(ctx context.Context, issueID string, assignee string) error
@@ -113,24 +115,79 @@ func (c *client) GetTeamIssues(ctx context.Context, teamID string) (*TeamData, e
 	return &query.Team, nil
 }
 
-func (c *client) DisplayIssues(ctx context.Context, teamID string) error {
+func (c *client) DisplayIssues(ctx context.Context, teamID string, titlesOnly bool) error {
 	team, err := c.GetTeamIssues(ctx, teamID)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Team: %s\n", team.Name)
-	for _, issue := range team.Issues.Nodes {
-		fmt.Printf("Issue: ID=%s, Title=%s\n", issue.ID, issue.Title)
-		if issue.Description != "" {
-			fmt.Printf("  Description: %s\n", issue.Description)
+	if titlesOnly {
+		for i, issue := range team.Issues.Nodes {
+			fmt.Printf("%d: %s\n", i+1, issue.Title)
 		}
-		if issue.Assignee.Name != "" {
-			fmt.Printf("  Assignee: %s\n", issue.Assignee.Name)
+	} else {
+		for _, issue := range team.Issues.Nodes {
+			fmt.Printf("Issue: ID=%s, Title=%s\n", issue.ID, issue.Title)
+			if issue.Description != "" {
+				fmt.Printf("  Description: %s\n", issue.Description)
+			}
+			if issue.Assignee.Name != "" {
+				fmt.Printf("  Assignee: %s\n", issue.Assignee.Name)
+			}
 		}
 	}
 
 	return nil
+}
+
+func (c *client) FindIssueByTitle(ctx context.Context, teamID string, title string) (string, error) {
+	var query struct {
+		Issues struct {
+			Nodes []struct {
+				ID    graphql.String
+				Title graphql.String
+			}
+		} `graphql:"issues(filter: {title: {contains: $title}})"`
+	}
+
+	variables := map[string]any{
+		"title": graphql.String(title),
+	}
+
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("Unable to find issue by title: %w\n", err)
+	}
+	issues := query.Issues.Nodes
+	if len(issues) != 1 {
+		return "", errors.New("Couldn't find one exact issue by title")
+	}
+	return string(issues[0].ID), nil
+}
+
+func (c *client) FindTeamByName(ctx context.Context, name string) (string, error) {
+	var query struct {
+		Teams struct {
+			Nodes []struct {
+				ID   graphql.String
+				Name graphql.String
+			}
+		} `graphql:"teams(filter: {name: {contains: $name}})"`
+	}
+
+	variables := map[string]any{
+		"name": graphql.String(name),
+	}
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("Could not find Team by Name: %w\n", err)
+	}
+	names := query.Teams.Nodes
+	if len(names) != 1 {
+		return "", errors.New("Couldn't find one exact Team by name")
+	}
+	return string(names[0].ID), nil
 }
 
 func (c *client) AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error) {

@@ -18,16 +18,24 @@ var issuesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List issues for a team",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		teamID, _ := cmd.Flags().GetString("team")
-		if teamID == "" {
+		var teamID string
+		teamName, _ := cmd.Flags().GetString("team")
+		if teamName == "" {
 			teamID = cfg.Linear.TeamID
+		} else {
+			var err error
+			teamID, err = linearClient.FindTeamByName(context.Background(), teamName)
+			if err != nil {
+				return err
+			}
 		}
 		if teamID == "" {
 			return fmt.Errorf("team ID required. Use --team flag or set linear.team_id in config")
 		}
+		titlesOnly, _ := cmd.Flags().GetBool("titles")
 		ctx := context.Background()
 		fmt.Printf("Listing issues for team %s...\n", teamID)
-		return linearClient.DisplayIssues(ctx, teamID)
+		return linearClient.DisplayIssues(ctx, teamID, titlesOnly)
 	},
 }
 
@@ -85,8 +93,13 @@ var issuesUpdateCmd = &cobra.Command{
 			return fmt.Errorf("linear API key not configured. Set LINEARTUI_LINEAR_API_KEY or add it to config.yaml")
 		}
 		issueID, _ := cmd.Flags().GetString("issueID")
-		if issueID == "" {
-			return fmt.Errorf("ID of particular issue is required")
+		title, _ := cmd.Flags().GetString("titleSearch")
+		if title != "" {
+			var err error
+			issueID, err = linearClient.FindIssueByTitle(context.Background(), cfg.Linear.TeamID, title)
+			if err != nil {
+				return err
+			}
 		}
 		assign, _ := cmd.Flags().GetString("assign")
 		if assign != "" {
@@ -119,15 +132,34 @@ var issuesUpdateCmd = &cobra.Command{
 	},
 }
 
+// var issuesFindID = &cobra.Command{
+// 	Use:   "find",
+// 	Short: "Find Issue ID using title",
+// 	RunE: func(cmd *cobra.Command, args []string) error {
+// 		title, _ := cmd.Flags().GetString("title")
+// 		if title == "" {
+// 			return fmt.Errorf("Must give exact title")
+// 		}
+// 		id, err := linearClient.FindIssueByTitle(context.Background(), "ec0b720c-d68c-4907-9708-8a3e52b810cc", title)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		fmt.Printf("this is the ID of the task u looked for: %s\n", id)
+// 		return nil
+// 	},
+// }
+
 func init() {
 	rootCmd.AddCommand(issuesCmd)
 	issuesCmd.AddCommand(issuesListCmd)
 	issuesCmd.AddCommand(issuesCreateCmd)
 	issuesCmd.AddCommand(issuesDeleteCmd)
 	issuesCmd.AddCommand(issuesUpdateCmd)
+	// issuesCmd.AddCommand(issuesFindID)
 
 	// Flags for list command
-	issuesListCmd.Flags().StringP("team", "t", "", "Team ID to list issues for")
+	issuesListCmd.Flags().StringP("team", "t", "", "Team Name to list issues for")
+	issuesListCmd.Flags().BoolP("titles", "T", false, "List only titles of Issues")
 
 	// Flags for create command
 	issuesCreateCmd.Flags().StringP("title", "T", "", "Issue title (required)")
@@ -140,6 +172,11 @@ func init() {
 	issuesUpdateCmd.Flags().StringP("description", "d", "", "Edit description")
 	issuesUpdateCmd.Flags().StringP("priority", "p", "", "Set new priority for issue")
 	issuesUpdateCmd.Flags().StringP("issueID", "i", "", "ID of issue to update")
-	issuesCreateCmd.MarkFlagRequired("issueID")
+	issuesUpdateCmd.Flags().StringP("titleSearch", "t", "", "Select issue by title")
+	issuesUpdateCmd.MarkFlagsOneRequired("issueID", "titleSearch")
+	issuesUpdateCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
 
+	//made to test the function it works if you search by exact title phrases/key words that are in a row that aren't shared
+	// issuesFindID.Flags().StringP("title", "t", "", "title to search by")
+	// issuesFindID.MarkFlagRequired("title")
 }
