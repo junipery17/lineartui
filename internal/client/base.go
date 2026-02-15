@@ -13,9 +13,14 @@ type Client interface {
 	GetTeams(ctx context.Context) ([]TeamData, error)
 	DisplayTeams(ctx context.Context) error
 	GetTeamIssues(ctx context.Context, teamID string) (*TeamData, error)
-	DisplayIssues(ctx context.Context, teamID string) error
-	AddIssue(ctx context.Context, teamID, title string, description ...string) (*IssueData, error)
+	DisplayIssues(ctx context.Context, teamID string, titlesOnly bool) error
+	FindIssueByTitle(ctx context.Context, teamID string, title string) (string, error)
+	FindTeamByName(ctx context.Context, name string) (string, error)
+	AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error)
 	DeleteIssue(ctx context.Context, issueID string) error
+	UpdateAssigneeOnIssue(ctx context.Context, issueID string, assignee string) error
+	UpdateDescriptionOnIssue(ctx context.Context, issueID string, description string) error
+	UpdatePriorityOnIssue(ctx context.Context, issueID string, priority float64) error
 }
 
 type client struct {
@@ -62,7 +67,7 @@ type IssueData struct {
 	Assignee    struct {
 		ID   graphql.String
 		Name graphql.String
-	}
+	} `graphql:"assignee"`
 }
 
 func (c *client) GetTeams(ctx context.Context) ([]TeamData, error) {
@@ -99,7 +104,7 @@ func (c *client) GetTeamIssues(ctx context.Context, teamID string) (*TeamData, e
 	}
 
 	variables := map[string]any{
-		"teamId": graphql.ID(teamID),
+		"teamId": graphql.String(teamID),
 	}
 
 	err := c.gql.Query(ctx, &query, variables)
@@ -110,27 +115,82 @@ func (c *client) GetTeamIssues(ctx context.Context, teamID string) (*TeamData, e
 	return &query.Team, nil
 }
 
-func (c *client) DisplayIssues(ctx context.Context, teamID string) error {
+func (c *client) DisplayIssues(ctx context.Context, teamID string, titlesOnly bool) error {
 	team, err := c.GetTeamIssues(ctx, teamID)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Team: %s\n", team.Name)
-	for _, issue := range team.Issues.Nodes {
-		fmt.Printf("Issue: ID=%s, Title=%s\n", issue.ID, issue.Title)
-		if issue.Description != "" {
-			fmt.Printf("  Description: %s\n", issue.Description)
+	if titlesOnly {
+		for i, issue := range team.Issues.Nodes {
+			fmt.Printf("%d: %s\n", i+1, issue.Title)
 		}
-		if issue.Assignee.Name != "" {
-			fmt.Printf("  Assignee: %s\n", issue.Assignee.Name)
+	} else {
+		for _, issue := range team.Issues.Nodes {
+			fmt.Printf("Issue: ID=%s, Title=%s\n", issue.ID, issue.Title)
+			if issue.Description != "" {
+				fmt.Printf("  Description: %s\n", issue.Description)
+			}
+			if issue.Assignee.Name != "" {
+				fmt.Printf("  Assignee: %s\n", issue.Assignee.Name)
+			}
 		}
 	}
 
 	return nil
 }
 
-func (c *client) AddIssue(ctx context.Context, teamID, title string, description ...string) (*IssueData, error) {
+func (c *client) FindIssueByTitle(ctx context.Context, teamID string, title string) (string, error) {
+	var query struct {
+		Issues struct {
+			Nodes []struct {
+				ID    graphql.String
+				Title graphql.String
+			}
+		} `graphql:"issues(filter: {title: {containsIgnoreCase: $title}})"`
+	}
+
+	variables := map[string]any{
+		"title": graphql.String(title),
+	}
+
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("Unable to find issue by title: %w\n", err)
+	}
+	issues := query.Issues.Nodes
+	if len(issues) != 1 {
+		return "", errors.New("Couldn't find one exact issue by title")
+	}
+	return string(issues[0].ID), nil
+}
+
+func (c *client) FindTeamByName(ctx context.Context, name string) (string, error) {
+	var query struct {
+		Teams struct {
+			Nodes []struct {
+				ID   graphql.String
+				Name graphql.String
+			}
+		} `graphql:"teams(filter: {name: {containsIgnoreCase: $name}})"`
+	}
+
+	variables := map[string]any{
+		"name": graphql.String(name),
+	}
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("Could not find Team by Name: %w\n", err)
+	}
+	names := query.Teams.Nodes
+	if len(names) != 1 {
+		return "", errors.New("Couldn't find one exact Team by name")
+	}
+	return string(names[0].ID), nil
+}
+
+func (c *client) AddIssue(ctx context.Context, teamID string, title string, description ...string) (*IssueData, error) {
 	if title == "" {
 		return nil, errors.New("title is required")
 	}
@@ -142,16 +202,21 @@ func (c *client) AddIssue(ctx context.Context, teamID, title string, description
 
 	var mutation struct {
 		IssueCreate struct {
-			Success graphql.Boolean
-			Issue   IssueData
+			Success graphql.Boolean `graphql:"success"`
+			Issue   IssueData       `graphql:"issue"`
 		} `graphql:"issueCreate(input: $input)"`
+	}
+	type IssueCreateInput struct {
+		Title       graphql.String `json:"title"`
+		Description graphql.String `json:"description"`
+		TeamID      graphql.String `json:"teamId"`
 	}
 
 	variables := map[string]any{
-		"input": map[string]any{
-			"title":       graphql.String(title),
-			"description": graphql.String(desc),
-			"teamId":      graphql.ID(teamID),
+		"input": IssueCreateInput{
+			Title:       graphql.String(title),
+			Description: graphql.String(desc),
+			TeamID:      graphql.String(teamID),
 		},
 	}
 
@@ -176,7 +241,7 @@ func (c *client) DeleteIssue(ctx context.Context, issueID string) error {
 	}
 
 	variables := map[string]any{
-		"id": graphql.ID(issueID),
+		"id": graphql.String(issueID),
 	}
 
 	err := c.gql.Mutate(ctx, &mutation, variables)
@@ -191,3 +256,85 @@ func (c *client) DeleteIssue(ctx context.Context, issueID string) error {
 	fmt.Printf("Successfully deleted issue: %s\n", issueID)
 	return nil
 }
+
+func (c *client) UpdateAssigneeOnIssue(ctx context.Context, issueID string, assign string) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+
+	type IssueUpdateInput struct {
+		AssigneeId graphql.String `json:"assigneeId"`
+	}
+
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			AssigneeId: graphql.String(assign),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue assignee: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue assignee update was not successful")
+	}
+	fmt.Printf("Successfully updated assignee %s to issue %s\n", assign, issueID)
+	return nil
+}
+
+func (c *client) UpdateDescriptionOnIssue(ctx context.Context, issueID string, description string) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+	type IssueUpdateInput struct {
+		Description graphql.String `json:"description"`
+	}
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			Description: graphql.String(description),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue description: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue description update was not successful")
+	}
+	fmt.Printf("Successfully updated description to issue %s\n", issueID)
+	return nil
+}
+
+func (c *client) UpdatePriorityOnIssue(ctx context.Context, issueID string, priority float64) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id: $issueUpdateId, input: $input)"`
+	}
+	type IssueUpdateInput struct {
+		Priority graphql.Float `json:"priority"`
+	}
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			Priority: graphql.Float(priority),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue priority: %w", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("issue priority update was not successful")
+	}
+	fmt.Printf("Successfully updated priority %d to issue %s\n", int(priority), issueID)
+	return nil
+}
+
+//a915ed54-6b89-4fb4-8361-5530ebe5783d <-- id of that one test issue u made
