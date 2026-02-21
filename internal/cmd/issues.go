@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -128,6 +129,42 @@ var issuesUpdateCmd = &cobra.Command{
 				return err
 			}
 		}
+		status, _ := cmd.Flags().GetString("status")
+		if status != "" {
+			status = strings.ToLower(status)
+			statID := StatusToID[status]
+			err := linearClient.UpdateStatusOnIssue(context.Background(), issueID, statID)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	},
+}
+
+var issueLabelCmd = &cobra.Command{
+	Use:   "label [issue-id]",
+	Short: "Update and edit labels on issue",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if cfg.Linear.APIKey == "" {
+			return fmt.Errorf("linear API key not configured. Set LINEARTUI_LINEAR_API_KEY or add it to config.yaml")
+		}
+		issueID, _ := cmd.Flags().GetString("issueID")
+		title, _ := cmd.Flags().GetString("titleSearch")
+		if title != "" {
+			var err error
+			issueID, err = linearClient.FindIssueByTitle(context.Background(), cfg.Linear.TeamID, title)
+			if err != nil {
+				return err
+			}
+		}
+		add, _ := cmd.Flags().GetString("add")
+		if add != "" {
+			err := linearClient.AddLabeltoIssue(context.Background(), issueID, add)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	},
 }
@@ -173,9 +210,15 @@ func init() {
 	issuesUpdateCmd.Flags().StringP("priority", "p", "", "Set new priority for issue")
 	issuesUpdateCmd.Flags().StringP("issueID", "i", "", "ID of issue to update")
 	issuesUpdateCmd.Flags().StringP("titleSearch", "t", "", "Select issue by title")
+	issuesUpdateCmd.Flags().StringP("status", "s", "", "Update status of issue")
 	issuesUpdateCmd.MarkFlagsOneRequired("issueID", "titleSearch")
 	issuesUpdateCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
 
+	//Flags for labels
+	issueLabelCmd.Flags().StringP("issueID", "i", "", "ID of issue to edit label")
+	issueLabelCmd.Flags().StringP("titleSearch", "t", "", "Issue by title")
+	issueLabelCmd.Flags().StringP("add", "a", "", "Add a label")
+	issueLabelCmd.Flags().StringP("remove", "r", "", "Remove a label")
 	//made to test the function it works if you search by exact title phrases/key words that are in a row that aren't shared
 	// issuesFindID.Flags().StringP("title", "t", "", "title to search by")
 	// issuesFindID.MarkFlagRequired("title")

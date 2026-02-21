@@ -21,6 +21,10 @@ type Client interface {
 	UpdateAssigneeOnIssue(ctx context.Context, issueID string, assignee string) error
 	UpdateDescriptionOnIssue(ctx context.Context, issueID string, description string) error
 	UpdatePriorityOnIssue(ctx context.Context, issueID string, priority float64) error
+	UpdateStatusOnIssue(ctx context.Context, issueID string, status string) error
+	SearchLabel(ctx context.Context, labelName string) (string, error)
+	CreateNewLabel(ctx context.Context, labelName string) (string, error)
+	AddLabeltoIssue(ctx context.Context, issueID string, labelName string) error
 }
 
 type client struct {
@@ -328,12 +332,113 @@ func (c *client) UpdatePriorityOnIssue(ctx context.Context, issueID string, prio
 	}
 	err := c.gql.Mutate(ctx, &mutation, variables)
 	if err != nil {
-		return fmt.Errorf("failed to update issue priority: %w", err)
+		return fmt.Errorf("failed to update issue priority: %w\n", err)
 	}
 	if !mutation.IssueUpdate.Success {
 		return errors.New("issue priority update was not successful")
 	}
 	fmt.Printf("Successfully updated priority %d to issue %s\n", int(priority), issueID)
+	return nil
+}
+
+func (c *client) UpdateStatusOnIssue(ctx context.Context, issueID string, status string) error {
+	var mutation struct {
+		IssueUpdate struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueUpdate(id : $issueUpdateId, input : $input)"`
+	}
+	type IssueUpdateInput struct {
+		StateId graphql.String `json:"stateId"`
+	}
+	variables := map[string]any{
+		"issueUpdateId": graphql.String(issueID),
+		"input": IssueUpdateInput{
+			StateId: graphql.String(status),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("Could not update status:%w\n", err)
+	}
+	if !mutation.IssueUpdate.Success {
+		return errors.New("Issue Status not updated\n")
+	}
+	fmt.Print("Successfully updated status\n")
+	return nil
+}
+
+func (c *client) SearchLabel(ctx context.Context, labelName string) (string, error) {
+	var query struct {
+		IssueLabels struct {
+			Nodes []struct {
+				Name graphql.String `json:"name"`
+				ID   graphql.String `json:"id"`
+			}
+		} `graphql:"issueLabels(filter {name: {eq: $name}})"`
+	}
+	variables := map[string]any{
+		"name": graphql.String(labelName),
+	}
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("Could not find label properly: %w\n", err)
+	}
+	if len(query.IssueLabels.Nodes) > 0 {
+		return string(query.IssueLabels.Nodes[0].ID), nil
+	}
+	return "", nil
+}
+
+func (c *client) CreateNewLabel(ctx context.Context, labelName string) (string, error) {
+	var mutation struct {
+		IssueLabelCreate struct {
+			Success    graphql.Boolean `json:"success"`
+			IssueLabel struct {
+				ID graphql.String `json:"id"`
+			}
+		} `graphql:"issueLabelCreate(input: $input)"`
+	}
+	type IssueLabelCreateInput struct {
+		Name graphql.String `json:"name"`
+	}
+	variables := map[string]any{
+		"input": IssueLabelCreateInput{
+			Name: graphql.String(labelName),
+		},
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return "", fmt.Errorf("unable to create new label: %w\n", err)
+	}
+	if !mutation.IssueLabelCreate.Success {
+		return "", errors.New("Label not created :(\n")
+	}
+	return string(mutation.IssueLabelCreate.IssueLabel.ID), nil
+}
+
+func (c *client) AddLabeltoIssue(ctx context.Context, issueID string, labelName string) error {
+	label, _ := c.SearchLabel(ctx, labelName)
+	if label == "" {
+		var err error
+		label, err = c.CreateNewLabel(ctx, labelName)
+		if err != nil {
+			return err
+		}
+	}
+	var mutation struct {
+		IssueAddLabel struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueAddLabel(id: $issueAddLabelId, labelId: $labelId)"`
+	}
+	variables := map[string]any{
+		"issueAddLabelId": graphql.String(issueID),
+		"labelId":         graphql.String(label),
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to add label to issue: %w\n", err)
+	}
+	fmt.Printf("successfully added '%s' to issue!\n", labelName)
 	return nil
 }
 
