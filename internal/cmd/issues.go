@@ -165,6 +165,13 @@ var issueLabelCmd = &cobra.Command{
 				return err
 			}
 		}
+		remove, _ := cmd.Flags().GetString("remove")
+		if remove != "" {
+			err := linearClient.RemoveLabelFromIssue(context.Background(), issueID, remove)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	},
 }
@@ -192,6 +199,7 @@ func init() {
 	issuesCmd.AddCommand(issuesCreateCmd)
 	issuesCmd.AddCommand(issuesDeleteCmd)
 	issuesCmd.AddCommand(issuesUpdateCmd)
+	issuesCmd.AddCommand(issueLabelCmd)
 	// issuesCmd.AddCommand(issuesFindID)
 
 	// Flags for list command
@@ -219,6 +227,9 @@ func init() {
 	issueLabelCmd.Flags().StringP("titleSearch", "t", "", "Issue by title")
 	issueLabelCmd.Flags().StringP("add", "a", "", "Add a label")
 	issueLabelCmd.Flags().StringP("remove", "r", "", "Remove a label")
+	issueLabelCmd.MarkFlagsOneRequired("issueID", "titleSearch")
+	issueLabelCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
+
 	//made to test the function it works if you search by exact title phrases/key words that are in a row that aren't shared
 	// issuesFindID.Flags().StringP("title", "t", "", "title to search by")
 	// issuesFindID.MarkFlagRequired("title")

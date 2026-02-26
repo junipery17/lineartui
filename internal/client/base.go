@@ -25,6 +25,7 @@ type Client interface {
 	SearchLabel(ctx context.Context, labelName string) (string, error)
 	CreateNewLabel(ctx context.Context, labelName string) (string, error)
 	AddLabeltoIssue(ctx context.Context, issueID string, labelName string) error
+	RemoveLabelFromIssue(ctx context.Context, issueID string, labelName string) error
 }
 
 type client struct {
@@ -371,10 +372,9 @@ func (c *client) SearchLabel(ctx context.Context, labelName string) (string, err
 	var query struct {
 		IssueLabels struct {
 			Nodes []struct {
-				Name graphql.String `json:"name"`
-				ID   graphql.String `json:"id"`
+				ID graphql.String `json:"id"`
 			}
-		} `graphql:"issueLabels(filter {name: {eq: $name}})"`
+		} `graphql:"issueLabels(filter: {name: {eqIgnoreCase: $name}})"`
 	}
 	variables := map[string]any{
 		"name": graphql.String(labelName),
@@ -439,6 +439,28 @@ func (c *client) AddLabeltoIssue(ctx context.Context, issueID string, labelName 
 		return fmt.Errorf("failed to add label to issue: %w\n", err)
 	}
 	fmt.Printf("successfully added '%s' to issue!\n", labelName)
+	return nil
+}
+
+func (c *client) RemoveLabelFromIssue(ctx context.Context, issueID string, labelName string) error {
+	label, _ := c.SearchLabel(ctx, labelName)
+	if label == "" {
+		return errors.New("A label with this name does not exist\n")
+	}
+	var mutation struct {
+		IssueRemoveLabel struct {
+			Success graphql.Boolean `graphql:"success"`
+		} `graphql:"issueRemoveLabel(id: $issueRemoveLabelId, labelId: $labelId)"`
+	}
+	variables := map[string]any{
+		"issueRemoveLabelId": graphql.String(issueID),
+		"labelId":            graphql.String(label),
+	}
+	err := c.gql.Mutate(ctx, &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to remove label: %w\n", err)
+	}
+	fmt.Printf("successfully removed '%s' from issue!\n", labelName)
 	return nil
 }
 
