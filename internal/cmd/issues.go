@@ -142,7 +142,7 @@ var issuesUpdateCmd = &cobra.Command{
 	},
 }
 
-var issueLabelCmd = &cobra.Command{
+var issueUpdateLabelCmd = &cobra.Command{
 	Use:   "label [issue-id]",
 	Short: "Update and edit labels on issue",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -176,31 +176,13 @@ var issueLabelCmd = &cobra.Command{
 	},
 }
 
-// var issuesFindID = &cobra.Command{
-// 	Use:   "find",
-// 	Short: "Find Issue ID using title",
-// 	RunE: func(cmd *cobra.Command, args []string) error {
-// 		title, _ := cmd.Flags().GetString("title")
-// 		if title == "" {
-// 			return fmt.Errorf("Must give exact title")
-// 		}
-// 		id, err := linearClient.FindIssueByTitle(context.Background(), "ec0b720c-d68c-4907-9708-8a3e52b810cc", title)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		fmt.Printf("this is the ID of the task u looked for: %s\n", id)
-// 		return nil
-// 	},
-// }
-
 func init() {
 	rootCmd.AddCommand(issuesCmd)
 	issuesCmd.AddCommand(issuesListCmd)
 	issuesCmd.AddCommand(issuesCreateCmd)
 	issuesCmd.AddCommand(issuesDeleteCmd)
 	issuesCmd.AddCommand(issuesUpdateCmd)
-	issuesCmd.AddCommand(issueLabelCmd)
-	// issuesCmd.AddCommand(issuesFindID)
+	issuesCmd.AddCommand(issueUpdateLabelCmd)
 
 	// Flags for list command
 	issuesListCmd.Flags().StringP("team", "t", "", "Team Name to list issues for")
@@ -223,14 +205,11 @@ func init() {
 	issuesUpdateCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
 
 	//Flags for labels
-	issueLabelCmd.Flags().StringP("issueID", "i", "", "ID of issue to edit label")
-	issueLabelCmd.Flags().StringP("titleSearch", "t", "", "Issue by title")
-	issueLabelCmd.Flags().StringP("add", "a", "", "Add a label")
-	issueLabelCmd.Flags().StringP("remove", "r", "", "Remove a label")
-	issueLabelCmd.MarkFlagsOneRequired("issueID", "titleSearch")
-	issueLabelCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
+	issueUpdateLabelCmd.Flags().StringP("issueID", "i", "", "ID of issue to edit label")
+	issueUpdateLabelCmd.Flags().StringP("titleSearch", "t", "", "Issue by title")
+	issueUpdateLabelCmd.Flags().StringP("add", "a", "", "Add a label")
+	issueUpdateLabelCmd.Flags().StringP("remove", "r", "", "Remove a label")
+	issueUpdateLabelCmd.MarkFlagsOneRequired("issueID", "titleSearch")
+	issueUpdateLabelCmd.MarkFlagsMutuallyExclusive("issueID", "titleSearch")
 
-	//made to test the function it works if you search by exact title phrases/key words that are in a row that aren't shared
-	// issuesFindID.Flags().StringP("title", "t", "", "title to search by")
-	// issuesFindID.MarkFlagRequired("title")
 }

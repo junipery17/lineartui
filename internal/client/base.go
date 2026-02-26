@@ -26,6 +26,7 @@ type Client interface {
 	CreateNewLabel(ctx context.Context, labelName string) (string, error)
 	AddLabeltoIssue(ctx context.Context, issueID string, labelName string) error
 	RemoveLabelFromIssue(ctx context.Context, issueID string, labelName string) error
+	ListLabels(ctx context.Context, issueID string) error
 }
 
 type client struct {
@@ -461,6 +462,50 @@ func (c *client) RemoveLabelFromIssue(ctx context.Context, issueID string, label
 		return fmt.Errorf("failed to remove label: %w\n", err)
 	}
 	fmt.Printf("successfully removed '%s' from issue!\n", labelName)
+	return nil
+}
+
+func (c *client) ListLabelsOfIssue(ctx context.Context, issueID string) error {
+	var query struct {
+		Issue struct {
+			Labels struct {
+				Nodes []struct {
+					Name graphql.String `json:"name"`
+				}
+			}
+		} `graphql:"issue(id: $issueId)"`
+	}
+	variables := map[string]any{
+		"issueId": graphql.String(issueID),
+	}
+	err := c.gql.Query(ctx, &query, variables)
+	if err != nil {
+		return err
+	}
+	for _, label := range query.Issue.Labels.Nodes {
+		fmt.Printf("%s\n", label.Name)
+	}
+	return nil
+}
+
+func (c *client) ListLabels(ctx context.Context, issueID string) error {
+	if issueID != "" {
+		return c.ListLabelsOfIssue(ctx, issueID)
+	}
+	var query struct {
+		IssueLabels struct {
+			Nodes []struct {
+				Name graphql.String `json:"name"`
+			}
+		} `graphql:"issueLabels"`
+	}
+	err := c.gql.Query(ctx, &query, nil)
+	if err != nil {
+		return err
+	}
+	for num, label := range query.IssueLabels.Nodes {
+		fmt.Printf("%d: %s\n", num+1, label.Name)
+	}
 	return nil
 }
 
